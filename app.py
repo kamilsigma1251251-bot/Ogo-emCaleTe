@@ -1,11 +1,12 @@
-from flask import Flask, request, jsonify
-import time
 from flask import Flask, request, jsonify, send_from_directory
-app = Flask(__name__)
+import time
+import os
+
+app = Flask(__name__, static_url_path='')
 
 clients = {}
 command_queue = {}
-report_queue = []  
+report_queue = [] 
 
 @app.route('/report', methods=['POST'])
 def report_status():
@@ -87,4 +88,3 @@ def serve_index():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
-
