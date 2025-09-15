@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, send_from_directory
 import time
 import os
-import base64
 
 app = Flask(__name__, static_url_path='')
 
@@ -71,33 +70,6 @@ def send_command_to_all():
     for client_ip in clients:
         command_queue[client_ip] = command
     return jsonify({"message": "Command queued for all clients."}), 200
-
-@app.route('/upload_file', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part in the request"}), 400
-    file = request.files['file']
-    client_ip = request.form.get('client_ip')
-    target_path = request.form.get('target_path')
-
-    if client_ip not in clients:
-        return jsonify({"error": "Client not found or not connected."}), 404
-
-    try:
-        file_content = file.read()
-        encoded_content = base64.b64encode(file_content).decode('utf-8')
-        
-        command_queue[client_ip] = {
-            "type": "file-transfer",
-            "data": {
-                "file_name": file.filename,
-                "file_content": encoded_content,
-                "target_path": target_path
-            }
-        }
-        return jsonify({"message": f"File '{file.filename}' queued for transfer to {client_ip}."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Error processing file: {e}"}), 500
 
 @app.route('/clients', methods=['GET'])
 def list_clients():
