@@ -339,39 +339,46 @@
                 if (!response.ok) throw new Error('Network response was not ok');
                 const clients = await response.json();
                 
+                // Save the currently selected client
+                const selectedClient = commandClientSelect.value;
+
                 clientListDiv.innerHTML = '';
                 commandClientSelect.innerHTML = '<option value="all">Wszyscy klienci</option>';
 
                 if (Object.keys(clients).length === 0) {
                     clientListDiv.innerHTML = '<p>Brak podłączonych klientów.</p>';
-                    return;
-                }
+                } else {
+                    for (const ip in clients) {
+                        const details = clients[ip];
+                        const lastSeen = new Date(details.last_seen * 1000).toLocaleString();
+                        
+                        const clientItem = document.createElement('div');
+                        clientItem.className = 'client-item';
+                        clientItem.innerHTML = `<h3>${ip} <span style="font-size:0.8em; color:#888;">(v${details.version})</span></h3>
+                                                <p>Status: ${details.status}</p>
+                                                <p>Ostatnio widziany: ${lastSeen}</p>`;
+                        
+                        // Add 'Przeglądaj pliki' button if file tree data exists for this client
+                        if (clientFileTrees[ip]) {
+                            const browseBtn = document.createElement('button');
+                            browseBtn.className = 'client-action-btn';
+                            browseBtn.textContent = 'Przeglądaj pliki';
+                            browseBtn.onclick = () => showFileExplorer(ip);
+                            clientItem.appendChild(browseBtn);
+                        }
+                                                
+                        clientListDiv.appendChild(clientItem);
 
-                for (const ip in clients) {
-                    const details = clients[ip];
-                    const lastSeen = new Date(details.last_seen * 1000).toLocaleString();
-                    
-                    const clientItem = document.createElement('div');
-                    clientItem.className = 'client-item';
-                    clientItem.innerHTML = `<h3>${ip} <span style="font-size:0.8em; color:#888;">(v${details.version})</span></h3>
-                                            <p>Status: ${details.status}</p>
-                                            <p>Ostatnio widziany: ${lastSeen}</p>`;
-                    
-                    // Add 'Przeglądaj pliki' button if file tree data exists for this client
-                    if (clientFileTrees[ip]) {
-                         const browseBtn = document.createElement('button');
-                         browseBtn.className = 'client-action-btn';
-                         browseBtn.textContent = 'Przeglądaj pliki';
-                         browseBtn.onclick = () => showFileExplorer(ip);
-                         clientItem.appendChild(browseBtn);
+                        const option = document.createElement('option');
+                        option.value = ip;
+                        option.textContent = ip;
+                        commandClientSelect.appendChild(option);
                     }
-                                            
-                    clientListDiv.appendChild(clientItem);
-
-                    const option = document.createElement('option');
-                    option.value = ip;
-                    option.textContent = ip;
-                    commandClientSelect.appendChild(option);
+                }
+                
+                // Restore the selected client if it still exists
+                if (clients[selectedClient]) {
+                    commandClientSelect.value = selectedClient;
                 }
             } catch (error) {
                 clientListDiv.innerHTML = `<p style="color:var(--red);">Błąd: Nie można połączyć się z serwerem API. ${error.message}</p>`;
