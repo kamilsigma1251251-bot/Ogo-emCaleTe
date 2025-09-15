@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 import time
-
+from flask import Flask, request, jsonify, send_from_directory
 app = Flask(__name__)
 
 clients = {}
@@ -81,5 +81,10 @@ def remove_client(client_ip):
         return jsonify({"message": f"Client {client_ip} removed."}), 200
     return jsonify({"message": f"Client {client_ip} not found."}), 404
     
+@app.route('/')
+def serve_index():
+    return send_from_directory('static', 'index.html')
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
