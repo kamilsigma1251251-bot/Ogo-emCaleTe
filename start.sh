@@ -1,1 +1,2 @@
-gunicorn your_application.wsgi
+#!/bin/bash
+gunicorn --bind 0.0.0.0:$PORT app:app
